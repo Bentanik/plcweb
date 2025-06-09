@@ -22,7 +22,8 @@ const beVietnam = Be_Vietnam_Pro({
 
 export const metadata: Metadata = {
   title: "LamThuePLC",
-  description: "Ứng dụng quản lý thuê PLC",
+  description: "Ứng dụng quản lý",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 
 export default function RootLayout({
@@ -33,7 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${beVietnam.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${beVietnam.variable} antialiased min-h-screen`}
       >
         <Provider>
           <NextTopLoader color="#000" height={3} />

@@ -26,8 +26,8 @@ export default function MonitorComponent() {
   return (
     <div>
       <MonitorHeader />
-      <div className="p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="p-2 sm:p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
           {dataM !== null ? (
             <>
               <MonitorBox
@@ -98,11 +98,11 @@ export default function MonitorComponent() {
             Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="w-[250px] p-6 rounded-2xl border bg-white shadow-md"
+                className="w-full p-4 sm:p-6 rounded-2xl border bg-white shadow-md"
               >
-                <Skeleton className="w-12 h-12 rounded-full mb-4" />
-                <Skeleton className="h-5 w-3/4 mb-2" />
-                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="w-10 h-10 sm:w-12 sm:h-12 rounded-full mb-3 sm:mb-4" />
+                <Skeleton className="h-4 sm:h-5 w-3/4 mb-2" />
+                <Skeleton className="h-3 sm:h-4 w-1/2" />
               </div>
             ))
           )}
