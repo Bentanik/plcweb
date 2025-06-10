@@ -1,563 +1,290 @@
-"use client";
+"use client"
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  type ColumnDef,
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-} from "@tanstack/react-table";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Calendar,
+  CalendarIcon,
+  Download,
   AlertTriangle,
-  FileSpreadsheet,
-  Filter,
-  RefreshCw,
-  Clock,
   TrendingUp,
-} from "lucide-react";
-import * as XLSX from "xlsx";
-import { useDatabase } from "@/hooks/use-database";
+  Filter,
+  FileSpreadsheet,
+  Database,
+  Clock,
+  Thermometer,
+  Droplets,
+  Activity,
+  Eye,
+  RefreshCw,
+} from "lucide-react"
+import * as XLSX from "xlsx"
+import { useDatabase } from "@/hooks/use-database"
 
-// Mock hook for demonstration
-
-type WarningItem = {
-  timestamp: number;
-  date: string;
-  type: string;
-  value: number;
-};
-
-const columns: ColumnDef<WarningItem>[] = [
-  {
-    id: "index",
-    header: "#",
-    cell: ({ row }) => (
-      <motion.div
-        initial={{ scale: 0 }}
-        animate={{ scale: 1 }}
-        transition={{ delay: row.index * 0.05 }}
-        className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-semibold text-sm"
-      >
-        {row.index + 1}
-      </motion.div>
-    ),
-  },
-  {
-    header: "Ngày cảnh báo",
-    accessorKey: "date",
-    cell: ({ row }) => (
-      <div className="flex items-center gap-2">
-        <Clock className="w-4 h-4 text-gray-500" />
-        <span className="font-medium">{row.original.date}</span>
-      </div>
-    ),
-  },
-  {
-    header: "Loại cảnh báo",
-    accessorKey: "type",
-    cell: ({ row }) => {
-      const type = row.original.type;
-      const getTypeColor = () => {
-        switch (type) {
-          case "Nhiệt độ":
-            return "bg-orange-100 text-orange-700 border-orange-200";
-          case "Độ ẩm":
-            return "bg-blue-100 text-blue-700 border-blue-200";
-          case "Độ đục":
-            return "bg-red-100 text-red-700 border-red-200";
-          case "Độ pH":
-            return "bg-red-100 text-red-700 border-red-200";
-          default:
-            return "bg-gray-100 text-gray-700 border-gray-200";
-        }
-      };
-
-      return (
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-sm font-medium ${getTypeColor()}`}
-        >
-          <AlertTriangle className="w-3 h-3" />
-          {type}
-        </motion.div>
-      );
-    },
-  },
-  {
-    header: "Giá trị",
-    accessorKey: "value",
-    cell: ({ row }) => {
-      const type = row.original.type;
-      const value = row.original.value;
-      let unit = "";
-
-      switch (type) {
-        case "Nhiệt độ":
-          unit = "°C";
-          break;
-        case "Độ ẩm":
-          unit = "%";
-          break;
-        case "Độ đục":
-          unit = "NTU";
-        case "Độ pH":
-          unit = "";
-          break;
-        default:
-          unit = "";
-      }
-
-      return (
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-2"
-        >
-          <TrendingUp className="w-4 h-4 text-gray-500" />
-          <span className="font-bold text-lg">
-            {value}{" "}
-            <span className="text-sm font-normal text-gray-500">{unit}</span>
-          </span>
-        </motion.div>
-      );
-    },
-  },
-];
-
-// Format timestamp to Vietnamese date string
-const formatTimestamp = (ts: number) => {
-  const date = new Date(ts * 1000);
-  return date.toLocaleString("vi-VN");
-};
-
-// Skeleton Components
-const TableSkeleton = () => (
-  <div className="space-y-4">
-    <div className="flex items-center justify-between">
-      <div className="h-8 bg-gray-200 rounded w-48 animate-pulse" />
-      <div className="h-10 bg-gray-200 rounded w-32 animate-pulse" />
-    </div>
-    <div className="border rounded-lg">
-      <div className="grid grid-cols-4 gap-4 p-4 border-b">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-6 bg-gray-200 rounded animate-pulse" />
-        ))}
-      </div>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <div
-          key={i}
-          className="grid grid-cols-4 gap-4 p-4 border-b last:border-b-0"
-        >
-          {[1, 2, 3, 4].map((j) => (
-            <div key={j} className="h-8 bg-gray-100 rounded animate-pulse" />
-          ))}
-        </div>
-      ))}
-    </div>
-  </div>
-);
-
-const rowVariants = {
-  hidden: { opacity: 0, y: 20, scale: 0.95 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: {
-      delay: i * 0.05,
-      type: "spring",
-      stiffness: 100,
-      damping: 15,
-    },
-  }),
-  hover: {
-    scale: 1.01,
-    backgroundColor: "rgba(59, 130, 246, 0.05)",
-    transition: { duration: 0.2 },
-  },
-};
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.2,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5 },
-  },
-};
-
-interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[];
-  data: TData[];
+declare type DataW = {
+  [timestamp: string]: {
+    Do_am: string
+    Do_duc: string
+    Ngay: string
+    Nhiet_do: string
+    Thoi_gian: string
+    Toc_do: string
+    Timestampt: string
+    pH: string
+  }
 }
 
-function DataTable<TData, TValue>({
-  columns,
-  data,
-}: DataTableProps<TData, TValue>) {
-  const table = useReactTable({
-    data,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
+export default function MonitoringAlert() {
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [isLoaded, setIsLoaded] = useState(false)
 
-  return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden"
-    >
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow
-              key={headerGroup.id}
-              className="bg-gray-50 border-b border-gray-200"
-            >
-              {headerGroup.headers.map((header) => (
-                <TableHead
-                  key={header.id}
-                  className="px-6 py-4 text-left font-semibold text-gray-700"
-                >
-                  {header.isPlaceholder
-                    ? null
-                    : flexRender(
-                        header.column.columnDef.header,
-                        header.getContext()
-                      )}
-                </TableHead>
-              ))}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          <AnimatePresence>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row, idx) => (
-                <motion.tr
-                  key={row.id}
-                  custom={idx}
-                  initial="hidden"
-                  animate="visible"
-                  whileHover="hover"
-                  variants={rowVariants}
-                  className="border-b border-gray-100 last:border-b-0 cursor-pointer"
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id} className="px-6 py-4">
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </motion.tr>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-32 text-center"
-                >
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="flex flex-col items-center gap-2 text-gray-500"
-                  >
-                    <AlertTriangle className="w-8 h-8" />
-                    <span>
-                      Không có dữ liệu cảnh báo trong khoảng thời gian này.
-                    </span>
-                  </motion.div>
-                </TableCell>
-              </TableRow>
-            )}
-          </AnimatePresence>
-        </TableBody>
-      </Table>
-    </motion.div>
-  );
-}
-
-export default function WarningData() {
-  const { data: dataE, loading: loadingE } = useDatabase<DataE>("/e");
-  const [data, setData] = useState<WarningItem[]>([]);
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [isExporting, setIsExporting] = useState(false);
-
-  // Get today and 7 days ago as default dates
-  const today = new Date().toISOString().split("T")[0];
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0];
+  const { data, loading, error } = useDatabase<DataW>("/W")
 
   useEffect(() => {
-    if (!fromDate) setFromDate(weekAgo);
-    if (!toDate) setToDate(today);
-  }, []);
+    const timer = setTimeout(() => setIsLoaded(true), 200)
+    return () => clearTimeout(timer)
+  }, [])
 
-  useEffect(() => {
-    if (dataE !== null) {
-      const formattedData: WarningItem[] = Object.entries(dataE)
-        .flatMap(([timestampStr, values]) => {
-          const timestamp = Number(timestampStr);
-          const date = formatTimestamp(timestamp);
-          const entries: WarningItem[] = [];
+  // Convert data object to array
+  const dataArray = useMemo(() => {
+    if (!data) return []
+    return Object.entries(data)
+      .map(([timestamp, values], index) => ({
+        stt: index + 1,
+        timestamp,
+        ...values,
+      }))
+      .sort((a, b) => new Date(b.Timestampt).getTime() - new Date(a.Timestampt).getTime())
+  }, [data])
 
-          if (values.AS != null) {
-            entries.push({
-              timestamp,
-              date,
-              type: "Áp suất",
-              value: values.AS,
-            });
-          }
-          if (values.MN != null) {
-            entries.push({
-              timestamp,
-              date,
-              type: "Mực nước",
-              value: values.MN,
-            });
-          }
-          if (values.ND != null) {
-            entries.push({
-              timestamp,
-              date,
-              type: "Nhiệt độ",
-              value: values.ND,
-            });
-          }
-
-          return entries;
-        })
-        .sort((a, b) => b.timestamp - a.timestamp);
-      setData(formattedData);
-    }
-  }, [dataE]);
-
-  // Filter data based on date range
+  // Filter data by date range
   const filteredData = useMemo(() => {
-    if (!fromDate || !toDate) return data;
+    if (!startDate && !endDate) return dataArray
 
-    const fromTimestamp = new Date(fromDate).getTime() / 1000;
-    const toTimestamp = new Date(toDate + " 23:59:59").getTime() / 1000;
+    return dataArray.filter((item) => {
+      const itemDate = new Date(item.Timestampt)
+      const start = startDate ? new Date(startDate) : new Date("1900-01-01")
+      const end = endDate ? new Date(endDate + "T23:59:59") : new Date("2100-12-31")
 
-    return data.filter(
-      (item) => item.timestamp >= fromTimestamp && item.timestamp <= toTimestamp
-    );
-  }, [data, fromDate, toDate]);
+      return itemDate >= start && itemDate <= end
+    })
+  }, [dataArray, startDate, endDate])
 
-  const exportToExcel = async () => {
-    setIsExporting(true);
+  // Export filtered data to Excel
+  const exportToExcel = () => {
+    if (filteredData.length === 0) return
 
-    try {
-      const exportData = filteredData.map((item, index) => ({
-        STT: index + 1,
-        "Ngày cảnh báo": item.date,
-        "Loại cảnh báo": item.type,
-        "Giá trị": `${item.value} ${
-          item.type === "Áp suất"
-            ? "kPa"
-            : item.type === "Mực nước"
-            ? "m"
-            : item.type === "Nhiệt độ"
-            ? "°C"
-            : ""
-        }`,
-      }));
+    const exportData = filteredData.map((item) => ({
+      STT: item.stt,
+      "Độ ẩm (%)": item.Do_am,
+      "Độ đục (NTU)": item.Do_duc,
+      Ngày: item.Ngay,
+      "Nhiệt độ (°C)": item.Nhiet_do,
+      "Thời gian": item.Thoi_gian,
+      "Tốc độ (m/s)": item.Toc_do,
+      pH: item.pH,
+    }))
 
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Dữ liệu cảnh báo");
+    const ws = XLSX.utils.json_to_sheet(exportData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, "Dữ liệu giám sát")
 
-      // Auto-size columns
-      const colWidths = [
-        { wch: 5 }, // STT
-        { wch: 20 }, // Ngày cảnh báo
-        { wch: 15 }, // Loại cảnh báo
-        { wch: 15 }, // Giá trị
-      ];
-      ws["!cols"] = colWidths;
+    const colWidths = Object.keys(exportData[0] || {}).map((key) => ({
+      wch: Math.max(key.length, 15),
+    }))
+    ws["!cols"] = colWidths
 
-      const fileName = `canh-bao-${fromDate}-den-${toDate}.xlsx`;
-      XLSX.writeFile(wb, fileName);
-    } catch (error) {
-      console.error("Error exporting to Excel:", error);
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  // if (loadingE) {
-  //   return (
-  //     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-5">
-  //       <TableSkeleton />
-  //     </motion.div>
-  //   )
-  // }
+    XLSX.writeFile(wb, `du-lieu-giam-sat-${new Date().toISOString().split("T")[0]}.xlsx`)
+  }
 
   return (
-    <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      className="mt-5 space-y-6"
-    >
-      {/* Header */}
-      <motion.div
-        variants={itemVariants}
-        className="flex items-center justify-between"
-      >
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Dữ liệu cảnh báo</h2>
-          <p className="text-gray-600 mt-1">
-            Theo dõi các cảnh báo hệ thống theo thời gian
-          </p>
-        </div>
-        <motion.div
-          whileHover={{ scale: 1.05 }}
-          className="flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-lg"
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Filter Section */}
+        <div
+          className={`bg-white rounded-lg shadow-sm border border-gray-200 transition-all duration-700 delay-400 ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
+            }`}
         >
-          <AlertTriangle className="w-4 h-4" />
-          <span className="font-medium">{filteredData.length} cảnh báo</span>
-        </motion.div>
-      </motion.div>
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Filter className="w-4 h-4 text-blue-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-800">Lọc dữ liệu theo thời gian</h2>
+            </div>
 
-      {/* Filters */}
-      <motion.div
-        variants={itemVariants}
-        className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm"
-      >
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-2">
-            <Filter className="w-5 h-5 text-gray-500" />
-            <span className="font-medium text-gray-700">
-              Lọc theo thời gian:
-            </span>
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Từ ngày</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                  <Clock className="absolute right-3 top-3 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
 
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <label className="text-sm font-medium text-gray-600">
-              Từ ngày:
-            </label>
-            <motion.input
-              whileFocus={{ scale: 1.02 }}
-              type="date"
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-            />
-          </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Đến ngày</label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                  <Clock className="absolute right-3 top-3 w-5 h-5 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
 
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <label className="text-sm font-medium text-gray-600">
-              Đến ngày:
-            </label>
-            <motion.input
-              whileFocus={{ scale: 1.02 }}
-              type="date"
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
-            />
-          </div>
-
-          <motion.button
-            onClick={exportToExcel}
-            disabled={isExporting || filteredData.length === 0}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all ml-auto"
-          >
-            <AnimatePresence mode="wait">
-              {isExporting ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0, rotate: 0 }}
-                  animate={{ opacity: 1, rotate: 360 }}
-                  exit={{ opacity: 0 }}
-                  transition={{
-                    duration: 1,
-                    repeat: Number.POSITIVE_INFINITY,
-                    ease: "linear",
+              <div className="flex items-end">
+                <button
+                  onClick={() => {
+                    setStartDate("")
+                    setEndDate("")
                   }}
+                  className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <RefreshCw className="w-4 h-4" />
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="download"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
+                  Xóa lọc
+                </button>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  onClick={exportToExcel}
+                  disabled={filteredData.length === 0}
+                  className={`w-full px-4 py-3 font-medium rounded-lg transition-colors flex items-center justify-center gap-2 ${filteredData.length === 0
+                      ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "bg-green-500 hover:bg-green-600 text-white"
+                    }`}
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
-                </motion.div>
-              )}
-            </AnimatePresence>
-            {isExporting ? "Đang xuất..." : "Xuất Excel"}
-          </motion.button>
-        </div>
-      </motion.div>
-
-      {/* Table */}
-      <motion.div variants={itemVariants}>
-        <DataTable columns={columns} data={filteredData} />
-      </motion.div>
-
-      {/* Summary */}
-      {filteredData.length > 0 && (
-        <motion.div
-          variants={itemVariants}
-          className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-blue-600" />
-              <span className="font-medium text-blue-800">
-                Tổng cộng: {filteredData.length} cảnh báo từ {fromDate} đến{" "}
-                {toDate}
-              </span>
-            </div>
-            <div className="text-sm text-blue-600">
-              {filteredData.filter((item) => item.type === "Nhiệt độ").length}{" "}
-              nhiệt độ •{" "}
-              {filteredData.filter((item) => item.type === "Độ ẩm").length} độ
-              ẩm •{" "}
-              {filteredData.filter((item) => item.type === "Độ đục").length} độ
-              đục• {filteredData.filter((item) => item.type === "độ pH").length}{" "}
-              độ pH
+                  <Download className="w-4 h-4" />
+                  Xuất Excel
+                </button>
+              </div>
             </div>
           </div>
-        </motion.div>
-      )}
-    </motion.div>
-  );
+        </div>
+
+        {/* Data Table */}
+        <div
+          className={`bg-white rounded-lg shadow-sm border border-gray-200 transition-all duration-700 delay-600 ${isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
+            }`}
+        >
+          <div className="p-6 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                  <TrendingUp className="w-4 h-4 text-green-600" />
+                </div>
+                <h2 className="text-lg font-semibold text-gray-800">Dữ liệu giám sát</h2>
+              </div>
+              <div className="bg-blue-50 px-3 py-1 rounded-full">
+                <span className="text-sm font-medium text-blue-700">{filteredData.length} bản ghi</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                  <Database className="w-6 h-6 text-blue-600" />
+                </div>
+                <p className="text-gray-600">Đang tải dữ liệu...</p>
+              </div>
+            ) : error ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="w-6 h-6 text-red-600" />
+                </div>
+                <p className="text-red-600 font-medium">Có lỗi xảy ra khi tải dữ liệu</p>
+                <p className="text-gray-500 text-sm mt-1">Vui lòng thử lại sau</p>
+              </div>
+            ) : filteredData.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <FileSpreadsheet className="w-6 h-6 text-gray-400" />
+                </div>
+                <p className="text-gray-600">Không có dữ liệu trong khoảng thời gian đã chọn</p>
+                <p className="text-gray-500 text-sm mt-1">Hãy thử điều chỉnh bộ lọc</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">STT</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                        <div className="flex items-center gap-2">
+                          <Droplets className="w-4 h-4 text-blue-500" />
+                          Độ ẩm (%)
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Độ đục (NTU)</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="w-4 h-4 text-gray-500" />
+                          Ngày
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                        <div className="flex items-center gap-2">
+                          <Thermometer className="w-4 h-4 text-red-500" />
+                          Nhiệt độ (°C)
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-gray-500" />
+                          Thời gian
+                        </div>
+                      </th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Tốc độ (m/s)</th>
+                      <th className="text-left py-3 px-4 font-semibold text-gray-700">pH</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredData.map((item, index) => (
+                      <tr
+                        key={item.timestamp}
+                        className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${index % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                          }`}
+                      >
+                        <td className="py-3 px-4 font-medium text-blue-600">{item.stt}</td>
+                        <td className="py-3 px-4 text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                            {item.Do_am}%
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-gray-700">{item.Do_duc}</td>
+                        <td className="py-3 px-4 text-gray-700">{item.Ngay}</td>
+                        <td className="py-3 px-4 text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                            {item.Nhiet_do}°C
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-gray-700">{item.Thoi_gian}</td>
+                        <td className="py-3 px-4 text-gray-700">{item.Toc_do}</td>
+                        <td className="py-3 px-4">
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            {item.pH}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }

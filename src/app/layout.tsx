@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 import NextTopLoader from "nextjs-toploader";
 import Provider from "@/providers";
+import { WarningProvider } from "@/context/warning-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -36,10 +37,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${beVietnam.variable} antialiased min-h-screen`}
       >
-        <Provider>
-          <NextTopLoader color="#000" height={3} />
-          {children}
-        </Provider>
+        <WarningProvider>
+          <Provider>
+            <NextTopLoader color="#000" height={3} />
+            {children}
+          </Provider>
+        </WarningProvider>
       </body>
     </html>
   );
